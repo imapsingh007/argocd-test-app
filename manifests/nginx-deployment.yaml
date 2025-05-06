@@ -4,6 +4,8 @@ metadata:
   name: nginx-hello
   labels:
     app: nginx-hello
+  annotations:
+    description: "A sample Nginx deployment managed by Argo CD"
 spec:
   replicas: 3
   selector:
@@ -13,9 +15,34 @@ spec:
     metadata:
       labels:
         app: nginx-hello
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
     spec:
       containers:
       - name: nginx
         image: nginx:stable
         ports:
         - containerPort: 80
+        env:
+        - name: ENV
+          value: "production"
+        resources:
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
