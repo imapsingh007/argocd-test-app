@@ -1,0 +1,170 @@
+since only your backend and frontend YAML files are in GitHub (used by Argo CD) and everything else is local, here's the plan:
+
+We’ll safely connect the backend to Azure SQL using a Kubernetes Secret, and you’ll manually apply the Secret from your local machine.
+
+
+
+
+  ✅ Here's the updated plan
+You will:
+
+🔐 Create a Kubernetes Secret manually from your local terminal.
+
+📦 Update your local backend deployment YAML to use the secret.
+
+💾 Commit and push to GitHub so Argo CD deploys it.
+
+🧪 Test backend endpoints to confirm SQL is connected.
+
+🔐 (Optional) Allow AKS public IP in Azure SQL firewall
+
+
+
+
+
+
+  ✅ Step 1: Create Kubernetes Secret locally
+Run this on your local terminal (where you have kubectl configured for your AKS cluster):
+
+
+
+
+kubectl create secret generic db-connection-secret \
+  --from-literal=CONNECTION_STRING='Driver={ODBC Driver 18 for SQL Server};Server=tcp:ap-server123.database.windows.net,1433;Database=ap-database;Uid=admin123;Pwd=admin@1234567;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;' \
+  -n app
+
+
+
+
+
+
+  ✅ This creates a secret named db-connection-secret in the app namespace.
+
+You can check it using:
+
+
+
+
+  kubectl get secret db-connection-secret -n app
+
+
+
+
+
+  ✅ Step 2: Modify your backend-deployment.yaml locally
+Open backend-deployment.yaml and inject the secret as an environment variable.
+
+🔽 Add this under containers: → env: section:
+
+
+
+✅ Example full container section:
+
+
+      containers:
+      - name: backend
+        image: apacr123.azurecr.io/backend:v1
+        ports:
+        - containerPort: 8000
+        env:
+        - name: CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: db-connection-secret
+              key: CONNECTION_STRING
+
+
+
+
+
+
+                ⚠️ Don't forget to match indentation with your YAML!
+
+
+
+
+
+
+  ✅ Step 3: Push the updated backend YAML to GitHub
+Save the file
+
+Run these git commands:
+
+
+
+cd /path/to/repo
+git add backend-deployment.yaml
+git commit -m "Add env var for Azure SQL connection string from secret"
+git push origin main
+
+
+
+
+
+  ✅ Once pushed, Argo CD will automatically apply the updated deployment.
+
+Or, go to the Argo CD UI and click "Sync" to force apply.
+
+
+
+
+
+
+
+  ✅ Step 4: Test your backend API
+Once redeployed, your FastAPI backend should now connect to Azure SQL.
+
+Use a browser or Postman to access:
+
+http://<backend-service-ip>:8000/api → (creates table)
+
+http://<backend-service-ip>:8000/api/tasks → (lists tasks)
+
+POST /api/tasks with this body:
+
+
+
+
+
+
+
+
+
+
+
+  ✅ Step 5 (Optional): Allow AKS IP in SQL Server Firewall
+If your backend logs show a connection timeout, it's likely because Azure SQL is blocking external traffic.
+
+🔎 Get AKS outbound IP:
+
+
+
+az aks show \
+  --resource-group <your-resource-group> \
+  --name <your-aks-cluster-name> \
+  --query "networkProfile.loadBalancerProfile.effectiveOutboundIPs" -o table
+
+
+
+
+
+  🛡️ Go to Azure Portal:
+Navigate to your SQL Server
+
+Open Networking > Firewall rules
+
+Add the AKS IP address
+
+Click Save
+
+
+  ✅ Done! Quick Recap:
+
+
+| Step | Action                                               |
+| ---- | ---------------------------------------------------- |
+| 1    | Created a secret manually in cluster using `kubectl` |
+| 2    | Used the secret in `backend-deployment.yaml`         |
+| 3    | Pushed YAML to GitHub for Argo CD to deploy          |
+| 4    | Verified backend talks to Azure SQL                  |
+| 5    | (Optional) Added AKS IP in Azure SQL firewall rules  |
